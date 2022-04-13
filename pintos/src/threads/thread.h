@@ -4,7 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-
+#include "threads/synch.h"
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -96,30 +96,35 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    
+    //project 2
+
+    struct list sibling;
+    struct list_elem child;
+    bool load_process;
+    bool exit_process;
+    struct semaphore load_semaphore;
+    struct semaphore exit_semaphore;
+    int exit_status;
+
+    
+    //struct list file_list;
+    struct file *running_file;    
+    struct file *fd[64];
+    //int next_fd;
+   
+    void (*handler[64])(void);
+    int next_fd;
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-
-    /*newly added members for project 1*/
-    int64_t wakeup_ticks;
-    int init_priority;
-    struct lock *wait_on_lock;
-    struct list donations;
-    struct list_elem donation_elem;
-    int nice;
-    int recent_cpu;
-
-    struct list_elem dyingelem;
-    int64_t start_tick;
-    int64_t end_tick;
   };
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-extern bool thread_report_latency;
 
 void thread_init (void);
 void thread_start (void);
@@ -152,22 +157,4 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-//project1
-void thread_sleep(int64_t ticks);
-void thread_awake(int64_t ticks);
-void update_next_tick_to_awake(void);
-int64_t get_next_tick_to_awake(void);
-void test_max_priority(void);
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-void donate_priority(void);
-void remove_with_lock(struct lock *lock);
-void refresh_priority(void);
-void mlfqs_priority(struct thread *t);
-void mlfqs_recent_cpu(struct thread *t);
-void mlfqs_load_avg(void);
-void mlfqs_increment(void);
-void mlfqs_recalc(void);
 #endif /* threads/thread.h */
-
-
-

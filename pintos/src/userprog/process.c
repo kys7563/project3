@@ -17,9 +17,105 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+#include "userprog/syscall.h"
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+//project 2
+void argument_stack(char **parse, int count, void **esp);
+struct thread *get_child_process(int pid);
+void remove_child_process(struct thread *cp);
+
+int process_add_file(struct file *f);
+struct file *process_get_file(int fd);
+void process_close_file(int fd);
+
+
+
+
+//project 2
+void argument_stack(char **parse, int count, void **esp){
+	int i,j,k;
+	int total_length=0;
+	int address[count]; //for storing addresses
+	for(i=count-1; i>-1; i--){
+		for(j = strlen(parse[i]); j>-1; j--){
+			*esp = *esp - 1;
+			**(char **)esp = parse[i][j];
+		}
+		total_length = total_length + strlen(parse[i]) + 1; //including null byte
+		address[i] = *(int *)esp;
+	}
+	if(total_length%4 != 0){
+		for(k=0; k < 4-(total_length%4) ; k++){
+			*esp = *esp - 1;
+			**(uint8_t **)esp = 0;
+		}
+	
+	}
+	//address
+	*esp = *esp - 4;
+	**(char ***)esp = 0;
+	for(i=count-1; i>-1 ; i--){
+		*esp = *esp - 4;
+		**(char ***)esp = (char *)address[i];
+	}
+	
+	*esp = *esp - 4;
+	**(char ****)esp = *esp + 4;
+	*esp = *esp - 4;
+	**(int **)esp = count;
+	*esp = *esp - 4;
+	**(void ***)esp = 0;
+}
+
+//find child process by pid
+struct thread *get_child_process(int pid){
+	struct list_elem *e;
+	struct thread *cur = thread_current();
+	for(e = list_begin(&(cur->sibling));e!=list_end(&(cur->sibling));e = list_next(e)){
+		struct thread *t = list_entry(e,struct thread, child);
+		if(t->tid == pid){
+			return t;
+		}
+	}
+	return NULL;
+}
+
+void remove_child_process(struct thread *cp){
+	list_remove(&(cp->child));
+	palloc_free_page(cp);
+}
+
+//add a file to file descriptor table
+int process_add_file(struct file *f){
+	struct thread *t = thread_current();
+	int next_fd = t->next_fd;
+	t->fd[next_fd] = f;
+	/*
+	int idx = 0;
+	while(t->fd[idx]!=NULL) idx++;
+	if(idx > t->next_fd+1) t->next_fd = ;
+	else t->next_fd = idx;
+	*/
+	t->next_fd ++;
+	return next_fd;
+}
+
+struct file *process_get_file(int fd){
+	struct thread *t = thread_current();
+	if(t->fd[fd]==NULL){
+		return NULL;
+	}
+	return t->fd[fd];
+	
+}
+
+void process_close_file(int fd){
+	struct thread *t = thread_current();
+	struct file *f = process_get_file(fd);
+	t->fd[fd] = NULL;
+	file_close(f);
+}
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -37,9 +133,15 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  char t_name[128];
+  int index = 0;
+  while(file_name[index]!=' '&&file_name[index]!='\0'){
+  	t_name[index] = file_name[index];
+  	index++;
+  }
+  t_name[index] = '\0';
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (t_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -54,13 +156,35 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  //project 2
+
+  char *parse[100];
+  int count = 0;
+  char *save_ptr;
+  parse[0] = strtok_r(file_name, " ", &save_ptr);
+  while(parse[count]!=NULL){
+  	count++;
+ 	parse[count] = strtok_r(NULL, " ", &save_ptr);
+  }
+
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (parse[0], &if_.eip, &if_.esp);
+  //printf("success is%d",success);
+  //finished loading
+  sema_up(&(thread_current()->load_semaphore));
 
+  //whether loading is successful or not
+  thread_current()->load_process = success;
+  if(success){
+  	argument_stack(parse,count,&if_.esp);
+  }
+  //hex_dump(if_.esp,if_.esp,PHYS_BASE-if_.esp,true);
+  
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -86,9 +210,17 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  return -1;
+  struct thread *child;
+  child = get_child_process(child_tid);
+  
+  if(child==NULL) return -1;
+  sema_down(&(child->exit_semaphore));
+  int exit_status = child->exit_status;
+  remove_child_process(child);
+
+  return exit_status;
 }
 
 /* Free the current process's resources. */
@@ -97,6 +229,13 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  int i = cur->next_fd - 1;
+  /*close fdt except for STDIN,STDOUT
+  while(i!=1){
+  	process_close_file(i);
+	//cur->fd[i] = NULL;
+  	i--;
+  }*/
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -104,7 +243,7 @@ process_exit (void)
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
+       * cur->pagedir to NULL before switching page directories,
          so that a timer interrupt can't switch back to the
          process page directory.  We must activate the base page
          directory before destroying the process's page
@@ -114,6 +253,12 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  //file_close(cur->running_file);
+  while(i!=1){
+  	process_close_file(i);
+	i--;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -221,10 +366,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  lock_acquire(&filesys_lock);
+
+
+
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+      lock_release(&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
@@ -242,6 +392,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  t->running_file = file;
+  file_deny_write(file);
+  lock_release(&filesys_lock);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
