@@ -1,0 +1,39 @@
+Copying tests/userprog/sig-simple to scratch partition...
+Copying tests/userprog/child-sig to scratch partition...
+qemu-system-i386 -device isa-debug-exit -drive file=/tmp/Z6dcbgd2EH.dsk,format=raw,index=0,media=disk -m 4 -net none -nographic -monitor null
+PiLo hda1
+Loading.........
+Kernel command line: -q -f extract run sig-simple
+Pintos booting with 3,968 kB RAM...
+367 pages available in kernel pool.
+367 pages available in user pool.
+Calibrating timer...  274,841,600 loops/s.
+hda: 5,040 sectors (2 MB), model "QM00001", serial "QEMU HARDDISK"
+hda1: 149 sectors (74 kB), Pintos OS kernel (20)
+hda2: 4,096 sectors (2 MB), Pintos file system (21)
+hda3: 201 sectors (100 kB), Pintos scratch (22)
+filesys: using hda2
+scratch: using hda3
+Formatting file system...done.
+Boot complete.
+Extracting ustar archive from scratch device into file system...
+Putting 'sig-simple' into the file system...
+Putting 'child-sig' into the file system...
+Erasing ustar archive...
+Executing 'sig-simple':
+(sig-simple) begin
+(child-sig) run
+Signum: 1, Action: 0x80480a0
+Signum: 2, Action: 0x80480a5
+child-sig: exit(81)
+(sig-simple) end
+sig-simple: exit(0)
+Execution of 'sig-simple' complete.
+Timer: 76 ticks
+Thread: 16 idle ticks, 59 kernel ticks, 1 user ticks
+hda2 (filesys): 126 reads, 408 writes
+hda3 (scratch): 200 reads, 2 writes
+Console: 1033 characters output
+Keyboard: 0 keys pressed
+Exception: 0 page faults
+Powering off...

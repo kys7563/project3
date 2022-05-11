@@ -1,0 +1,20 @@
+FAIL
+Test output failed to match any acceptable form.
+
+Acceptable output:
+  (sig-simple) begin
+  (child-sig) run
+  Signum: 1, Action: 0x80480a0
+  Signum: 2, Action: 0x80480a1
+  child-sig: exit(81)
+  (sig-simple) end
+  sig-simple: exit(0)
+Differences in `diff -u' format:
+  (sig-simple) begin
+  (child-sig) run
+  Signum: 1, Action: 0x80480a0
+- Signum: 2, Action: 0x80480a1
++ Signum: 2, Action: 0x80480a5
+  child-sig: exit(81)
+  (sig-simple) end
+  sig-simple: exit(0)
