@@ -4,6 +4,9 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "vm/page.h"
+#include "userprog/process.h"
+#include "userprog/syscall.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -147,16 +150,38 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-  exit(-1);
+  //exit(-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
+  /*printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading",
           user ? "user" : "kernel");
-  kill (f);
+  kill (f);*/
+  //printf("fault address is %p\n",fault_addr);
+  check_address(fault_addr, f->esp);
+  if(not_present == false){
+	  //printf("not present\n");
+	  exit(-1);
+  }
+ 
+  struct vm_entry *vme = find_vme(fault_addr);
+
+  if(vme==NULL) printf("not found\n");
+  if(handle_mm_fault(vme) == false){
+	  //printf("handlemmfua\n");
+	  exit(-1);
+  }
+  else {
+	vme->pinned = false;
+	vme->is_loaded = true;
+  }
+
+
+
+
 }
 

@@ -6,7 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
-
+#include <stdio.h>
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
@@ -343,3 +343,9 @@ inode_length (const struct inode *inode)
 {
   return inode->data.length;
 }
+
+/*
+void inode_printf(struct inode *inode){
+	printf("inode_printf : %d \n", inode->sector);
+
+}*/

@@ -58,6 +58,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+struct list lru_list;
+struct lock lru_list_lock;
+struct page *lru_clock;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -211,6 +214,10 @@ thread_create (const char *name, int priority,
   }
   t->next_fd = 2;
 
+  //project3
+  //
+  list_init(&t->mmap_list);
+  t->next_mapid = 1;
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -306,8 +313,9 @@ thread_exit (void)
   list_remove (&thread_current()->allelem);
   //project 2
   thread_current()->exit_process = true;
-  sema_up(&(thread_current()->exit_semaphore));
-
+  if(thread_current() != initial_thread){
+  	sema_up(&(thread_current()->exit_semaphore));
+  }
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();

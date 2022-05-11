@@ -22,6 +22,7 @@
 #include "threads/palloc.h"
 #include "threads/pte.h"
 #include "threads/thread.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "userprog/exception.h"
@@ -38,6 +39,8 @@
 #include "filesys/fsutil.h"
 #endif
 
+#include "vm/frame.h"
+#include "vm/swap.h"
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
 
@@ -128,7 +131,11 @@ main (void)
 #endif
 
   printf ("Boot complete.\n");
-  
+  //project3
+  lock_init(&filesys_lock);
+  lru_list_init();
+  swap_init();
+
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 
